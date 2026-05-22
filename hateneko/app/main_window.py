@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -38,6 +38,7 @@ from hateneko.app.thumbnail_list import ThumbnailList
 from hateneko.core.file_manager import FileManager, MoveRecord
 from hateneko.core.fast_scanner import scan_images_parallel
 from hateneko.core.image_loader import ImageInfo, ImageLoader
+from hateneko.core.paths import resource_path
 from hateneko.core.report_exporter import (
     build_scan_summary,
     write_csv_report,
@@ -105,6 +106,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("破綻ねこ")
+        self.setWindowIcon(app_icon())
         self.resize(1280, 820)
 
         self.settings = SettingsManager()
@@ -896,6 +898,12 @@ class MainWindow(QMainWindow):
 def run_app() -> int:
     app = QApplication([])
     app.setStyle("Fusion")
+    app.setWindowIcon(app_icon())
     window = MainWindow()
     window.show()
     return app.exec()
+
+
+def app_icon() -> QIcon:
+    icon_path = resource_path(Path("hateneko") / "assets" / "app_icon.png")
+    return QIcon(str(icon_path))

@@ -14,6 +14,9 @@ hiddenimports += collect_submodules("cv2")
 datas = []
 datas += collect_data_files("mediapipe")
 datas += collect_data_files("cv2")
+datas += [
+    ("hateneko/assets/app_icon.png", "hateneko/assets"),
+]
 
 binaries = []
 binaries += collect_dynamic_libs("mediapipe")
@@ -57,6 +60,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon="hateneko/assets/app_icon.ico",
 )
 
 coll = COLLECT(

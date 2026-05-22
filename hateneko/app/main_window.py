@@ -37,6 +37,11 @@ from hateneko.app.settings import SettingsManager
 from hateneko.app.thumbnail_list import ThumbnailList
 from hateneko.core.file_manager import FileManager, MoveRecord
 from hateneko.core.image_loader import ImageInfo, ImageLoader
+from hateneko.core.report_exporter import (
+    build_scan_summary,
+    write_csv_report,
+    write_json_report,
+)
 from hateneko.core.scan_result import (
     STATUS_DELETED,
     STATUS_FIX,
@@ -198,6 +203,13 @@ class MainWindow(QMainWindow):
         info_layout.addRow("スキャン", self.scan_status_label)
         layout.addWidget(info_group)
 
+        summary_group = QGroupBox("スキャン概要")
+        summary_layout = QVBoxLayout(summary_group)
+        self.summary_label = QLabel("-")
+        self.summary_label.setWordWrap(True)
+        summary_layout.addWidget(self.summary_label)
+        layout.addWidget(summary_group)
+
         issues_group = QGroupBox("破綻候補リスト")
         issues_layout = QVBoxLayout(issues_group)
         self.issue_list = QListWidget()
@@ -340,6 +352,12 @@ class MainWindow(QMainWindow):
         self.scan_button = QPushButton("スキャン開始")
         self.scan_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload))
         self.scan_button.clicked.connect(self.start_scan)
+        self.csv_report_button = QPushButton("CSV出力")
+        self.csv_report_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
+        self.csv_report_button.clicked.connect(self.export_csv_report)
+        self.json_report_button = QPushButton("JSON出力")
+        self.json_report_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
+        self.json_report_button.clicked.connect(self.export_json_report)
 
         for button in [
             self.prev_button,
@@ -350,6 +368,8 @@ class MainWindow(QMainWindow):
             self.delete_button,
             self.undo_button,
             self.scan_button,
+            self.csv_report_button,
+            self.json_report_button,
         ]:
             layout.addWidget(button)
         layout.addStretch(1)
@@ -602,6 +622,30 @@ class MainWindow(QMainWindow):
         self._scan_thread.finished.connect(self._scan_thread.deleteLater)
         self._scan_thread.start()
 
+    def export_csv_report(self) -> None:
+        if self.folder_path is None:
+            return
+        report_path = write_csv_report(
+            self.folder_path,
+            self.image_paths,
+            self.statuses,
+            self.scan_results,
+        )
+        self.logger.log("export_csv_report", file=str(report_path))
+        self.statusBar().showMessage(f"CSVレポートを保存しました: {report_path}")
+
+    def export_json_report(self) -> None:
+        if self.folder_path is None:
+            return
+        report_path = write_json_report(
+            self.folder_path,
+            self.image_paths,
+            self.statuses,
+            self.scan_results,
+        )
+        self.logger.log("export_json_report", file=str(report_path))
+        self.statusBar().showMessage(f"JSONレポートを保存しました: {report_path}")
+
     @Slot(str, object, int, int)
     def _on_scan_progress(
         self,
@@ -659,6 +703,7 @@ class MainWindow(QMainWindow):
             self.thumbnail_list.select_path(visible[0])
         elif not visible:
             self.thumbnail_list.select_path(None)
+        self._update_summary()
 
     def _select_path_from_list(self, path_str: str) -> None:
         path = Path(path_str)
@@ -718,6 +763,29 @@ class MainWindow(QMainWindow):
         ]:
             label.setText("-")
         self.issue_list.clear()
+
+    def _update_summary(self) -> None:
+        if not hasattr(self, "summary_label"):
+            return
+        summary = build_scan_summary(self.image_paths, self.statuses, self.scan_results)
+        issue_counts = summary["issue_counts"]
+        top_issues = " / ".join(
+            f"{issue_type}: {count}"
+            for issue_type, count in list(issue_counts.items())[:4]
+        )
+        if not top_issues:
+            top_issues = "-"
+        self.summary_label.setText(
+            "総数: {total}  スキャン済み: {scanned}  未スキャン: {unscanned}\n"
+            "Suspicious: {suspicious}\n"
+            "主な候補: {top_issues}".format(
+                total=summary["total"],
+                scanned=summary["scanned"],
+                unscanned=summary["unscanned"],
+                suspicious=summary["suspicious"],
+                top_issues=top_issues,
+            )
+        )
 
     def _move_visible_selection(self, delta: int) -> None:
         visible = self.thumbnail_list.visible_paths()

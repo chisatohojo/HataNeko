@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QProgressBar,
+    QScrollArea,
     QSpinBox,
     QSplitter,
     QStyle,
@@ -232,6 +233,18 @@ class MainWindow(QMainWindow):
         self.scan_zero_faces_check.toggled.connect(
             lambda value: self.settings.set("scan_zero_faces", value)
         )
+        self.scan_pose_check = QCheckBox()
+        self.scan_pose_check.toggled.connect(
+            lambda value: self.settings.set("scan_pose_checks", value)
+        )
+        self.scan_missing_pose_check = QCheckBox()
+        self.scan_missing_pose_check.toggled.connect(
+            lambda value: self.settings.set("scan_missing_pose", value)
+        )
+        self.scan_hand_check = QCheckBox()
+        self.scan_hand_check.toggled.connect(
+            lambda value: self.settings.set("scan_hand_checks", value)
+        )
 
         self.target_width_spin = QSpinBox()
         self.target_width_spin.setRange(1, 50000)
@@ -255,6 +268,21 @@ class MainWindow(QMainWindow):
         self.phash_threshold_spin.valueChanged.connect(
             lambda value: self.settings.set("perceptual_hash_threshold", value)
         )
+        self.pose_max_spin = QSpinBox()
+        self.pose_max_spin.setRange(1, 8)
+        self.pose_max_spin.valueChanged.connect(
+            lambda value: self.settings.set("pose_max_poses", value)
+        )
+        self.expected_hand_spin = QSpinBox()
+        self.expected_hand_spin.setRange(0, 12)
+        self.expected_hand_spin.valueChanged.connect(
+            lambda value: self.settings.set("expected_hand_count", value)
+        )
+        self.max_hands_spin = QSpinBox()
+        self.max_hands_spin.setRange(1, 12)
+        self.max_hands_spin.valueChanged.connect(
+            lambda value: self.settings.set("max_hands_to_detect", value)
+        )
 
         settings_layout.addRow("Delete", self.delete_mode_combo)
         settings_layout.addRow("自動送り", self.auto_advance_check)
@@ -267,7 +295,18 @@ class MainWindow(QMainWindow):
         settings_layout.addRow("近似しきい値", self.phash_threshold_spin)
         settings_layout.addRow("顔数チェック", self.scan_face_check)
         settings_layout.addRow("顔0件も警告", self.scan_zero_faces_check)
-        layout.addWidget(settings_group)
+        settings_layout.addRow("姿勢/腕チェック", self.scan_pose_check)
+        settings_layout.addRow("姿勢0件も警告", self.scan_missing_pose_check)
+        settings_layout.addRow("姿勢最大数", self.pose_max_spin)
+        settings_layout.addRow("手・指チェック", self.scan_hand_check)
+        settings_layout.addRow("想定手数", self.expected_hand_spin)
+        settings_layout.addRow("手検出最大数", self.max_hands_spin)
+        settings_scroll = QScrollArea()
+        settings_scroll.setWidgetResizable(True)
+        settings_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        settings_scroll.setMinimumHeight(260)
+        settings_scroll.setWidget(settings_group)
+        layout.addWidget(settings_scroll)
 
         return panel
 
@@ -342,10 +381,16 @@ class MainWindow(QMainWindow):
             self.scan_near_duplicate_check,
             self.scan_face_check,
             self.scan_zero_faces_check,
+            self.scan_pose_check,
+            self.scan_missing_pose_check,
+            self.scan_hand_check,
             self.target_width_spin,
             self.target_height_spin,
             self.aspect_tolerance_spin,
             self.phash_threshold_spin,
+            self.pose_max_spin,
+            self.expected_hand_spin,
+            self.max_hands_spin,
         ]
         for control in controls:
             control.blockSignals(True)
@@ -365,6 +410,11 @@ class MainWindow(QMainWindow):
             self.scan_zero_faces_check.setChecked(
                 bool(self.settings.get("scan_zero_faces", False))
             )
+            self.scan_pose_check.setChecked(bool(self.settings.get("scan_pose_checks", False)))
+            self.scan_missing_pose_check.setChecked(
+                bool(self.settings.get("scan_missing_pose", False))
+            )
+            self.scan_hand_check.setChecked(bool(self.settings.get("scan_hand_checks", False)))
             self.target_width_spin.setValue(int(self.settings.get("target_width", 1024)))
             self.target_height_spin.setValue(int(self.settings.get("target_height", 1536)))
             self.aspect_tolerance_spin.setValue(
@@ -373,6 +423,9 @@ class MainWindow(QMainWindow):
             self.phash_threshold_spin.setValue(
                 int(self.settings.get("perceptual_hash_threshold", 6))
             )
+            self.pose_max_spin.setValue(int(self.settings.get("pose_max_poses", 2)))
+            self.expected_hand_spin.setValue(int(self.settings.get("expected_hand_count", 2)))
+            self.max_hands_spin.setValue(int(self.settings.get("max_hands_to_detect", 4)))
         finally:
             for control in controls:
                 control.blockSignals(False)

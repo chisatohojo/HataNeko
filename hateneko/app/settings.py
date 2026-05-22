@@ -19,6 +19,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "scan_duplicate": True,
     "scan_near_duplicate": True,
     "perceptual_hash_threshold": 6,
+    "scan_pose_checks": False,
+    "scan_missing_pose": False,
+    "pose_max_poses": 2,
+    "scan_hand_checks": False,
+    "expected_hand_count": 2,
+    "max_hands_to_detect": 4,
 }
 
 

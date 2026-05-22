@@ -4,4 +4,4 @@ opencv-python
 numpy
 send2trash
 imagehash
-
+mediapipe

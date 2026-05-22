@@ -21,4 +21,7 @@ _hateneko_ng/
 _hateneko_deleted/
 _hateneko_logs/
 
+hateneko/assets/models/*.task
+hateneko/assets/models/*.download
+
 *.log

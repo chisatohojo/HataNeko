@@ -11,5 +11,11 @@
   "scan_zero_faces": false,
   "scan_duplicate": true,
   "scan_near_duplicate": true,
-  "perceptual_hash_threshold": 6
+  "perceptual_hash_threshold": 6,
+  "scan_pose_checks": false,
+  "scan_missing_pose": false,
+  "pose_max_poses": 2,
+  "scan_hand_checks": false,
+  "expected_hand_count": 2,
+  "max_hands_to_detect": 4
 }

@@ -11,6 +11,8 @@ from hateneko.detectors.brightness_detector import BrightnessDetector
 from hateneko.detectors.duplicate_detector import DuplicateDetector
 from hateneko.detectors.face_detector import FaceDetector
 from hateneko.detectors.file_detector import FileDetector
+from hateneko.detectors.hand_detector import HandDetector
+from hateneko.detectors.pose_detector import PoseDetector
 from hateneko.detectors.resolution_detector import ResolutionDetector
 
 
@@ -72,6 +74,12 @@ def build_default_scanner(settings: dict[str, Any] | None = None) -> Scanner:
         "expected_person_count": int(settings.get("expected_person_count", 1)),
         "scan_face_count": bool(settings.get("scan_face_count", True)),
         "scan_zero_faces": bool(settings.get("scan_zero_faces", False)),
+        "scan_pose_checks": bool(settings.get("scan_pose_checks", False)),
+        "scan_missing_pose": bool(settings.get("scan_missing_pose", False)),
+        "pose_max_poses": int(settings.get("pose_max_poses", 2)),
+        "scan_hand_checks": bool(settings.get("scan_hand_checks", False)),
+        "expected_hand_count": int(settings.get("expected_hand_count", 2)),
+        "max_hands_to_detect": int(settings.get("max_hands_to_detect", 4)),
     }
 
     detectors: list[BaseDetector] = [
@@ -80,6 +88,8 @@ def build_default_scanner(settings: dict[str, Any] | None = None) -> Scanner:
         BrightnessDetector(),
         _ContextDuplicateDetector(context_defaults),
         _ContextFaceDetector(context_defaults),
+        _ContextPoseDetector(context_defaults),
+        _ContextHandDetector(context_defaults),
     ]
     return Scanner(detectors)
 
@@ -118,3 +128,29 @@ class _ContextFaceDetector(FaceDetector):
     def detect(self, image, file_path, context):
         merged = {**self.defaults, **context}
         return super().detect(image, file_path, merged)
+
+
+class _ContextPoseDetector(PoseDetector):
+    def __init__(self, defaults: dict[str, Any]) -> None:
+        super().__init__()
+        self.defaults = defaults
+
+    def detect(self, image, file_path, context):
+        merged = {**self.defaults, **context}
+        issues = super().detect(image, file_path, merged)
+        context["pose_landmarks"] = merged.get("pose_landmarks", [])
+        context["pose_bboxes"] = merged.get("pose_bboxes", [])
+        context["pose_image_size"] = merged.get("pose_image_size")
+        return issues
+
+
+class _ContextHandDetector(HandDetector):
+    def __init__(self, defaults: dict[str, Any]) -> None:
+        super().__init__()
+        self.defaults = defaults
+
+    def detect(self, image, file_path, context):
+        merged = {**self.defaults, **context}
+        issues = super().detect(image, file_path, merged)
+        context["hand_landmarks"] = merged.get("hand_landmarks", [])
+        return issues

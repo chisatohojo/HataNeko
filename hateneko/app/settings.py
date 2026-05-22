@@ -30,14 +30,17 @@ class SettingsManager:
         return Path(__file__).resolve().parents[2] / "settings.json"
 
     def load(self) -> dict[str, Any]:
+        should_save = not self.path.exists()
         if self.path.exists():
             try:
                 loaded = json.loads(self.path.read_text(encoding="utf-8"))
                 if isinstance(loaded, dict):
                     self.data.update(loaded)
+                    should_save = any(key not in loaded for key in DEFAULT_SETTINGS)
             except (OSError, json.JSONDecodeError):
-                pass
-        self.save()
+                should_save = True
+        if should_save:
+            self.save()
         return self.data
 
     def save(self) -> None:
@@ -53,4 +56,3 @@ class SettingsManager:
     def set(self, key: str, value: Any) -> None:
         self.data[key] = value
         self.save()
-

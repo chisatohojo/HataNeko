@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 
 from PIL import Image, ImageDraw
 
+from hateneko.core.fast_scanner import scan_images_parallel
 from hateneko.core.scanner import build_default_scanner
 
 
@@ -90,6 +91,29 @@ class ScannerTest(unittest.TestCase):
             result = scanner.scan_image(path, {})
 
             self.assertIn("no_face_detected", result.issue_types)
+
+    def test_parallel_scanner_reports_duplicates(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            first = Path(temp_dir) / "a.png"
+            second = Path(temp_dir) / "b.png"
+            Image.new("RGB", (128, 128), (10, 20, 30)).save(first)
+            second.write_bytes(first.read_bytes())
+
+            results = scan_images_parallel(
+                [first, second],
+                {
+                    "target_width": 128,
+                    "target_height": 128,
+                    "scan_duplicate": True,
+                    "scan_near_duplicate": True,
+                    "scan_face_count": False,
+                    "scan_worker_count": 2,
+                    "high_performance_scan": True,
+                },
+            )
+
+            self.assertNotIn("duplicate_exact", results[str(first)].issue_types)
+            self.assertIn("duplicate_exact", results[str(second)].issue_types)
 
 
 if __name__ == "__main__":

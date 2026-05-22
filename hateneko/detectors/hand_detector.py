@@ -114,7 +114,10 @@ class HandDetector(BaseDetector):
             return self._landmarker
 
         model_path = ensure_model(HAND_LANDMARKER)
-        base_options = python.BaseOptions(model_asset_path=str(model_path))
+        base_options = python.BaseOptions(
+            model_asset_path=str(model_path),
+            delegate=_mediapipe_delegate(context),
+        )
         options = vision.HandLandmarkerOptions(
             base_options=base_options,
             running_mode=vision.RunningMode.IMAGE,
@@ -208,6 +211,12 @@ class HandDetector(BaseDetector):
 
 def _distance(a, b) -> float:
     return hypot(a.x - b.x, a.y - b.y)
+
+
+def _mediapipe_delegate(context: dict[str, Any]):
+    if str(context.get("mediapipe_delegate", "CPU")).upper() == "GPU":
+        return python.BaseOptions.Delegate.GPU
+    return python.BaseOptions.Delegate.CPU
 
 
 def _hand_size(hand) -> float:

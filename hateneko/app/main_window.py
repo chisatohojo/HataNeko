@@ -36,6 +36,7 @@ from hateneko.app.logger import ActionLogger
 from hateneko.app.settings import SettingsManager
 from hateneko.app.thumbnail_list import ThumbnailList
 from hateneko.core.file_manager import FileManager, MoveRecord
+from hateneko.core.fast_scanner import scan_images_parallel
 from hateneko.core.image_loader import ImageInfo, ImageLoader
 from hateneko.core.report_exporter import (
     build_scan_summary,
@@ -77,6 +78,11 @@ class ScanWorker(QObject):
 
     @Slot()
     def run(self) -> None:
+        if bool(self.settings.get("high_performance_scan", True)):
+            scan_images_parallel(self.paths, self.settings, self._emit_progress)
+            self.finished.emit()
+            return
+
         scanner = build_default_scanner(self.settings)
         context: dict[str, Any] = {}
         total = len(self.paths)
@@ -84,6 +90,15 @@ class ScanWorker(QObject):
             result = scanner.scan_image(path, context)
             self.progress.emit(str(path), result, index, total)
         self.finished.emit()
+
+    def _emit_progress(
+        self,
+        path: str,
+        result: ScanResult,
+        done: int,
+        total: int,
+    ) -> None:
+        self.progress.emit(path, result, done, total)
 
 
 class MainWindow(QMainWindow):
@@ -257,6 +272,16 @@ class MainWindow(QMainWindow):
         self.scan_hand_check.toggled.connect(
             lambda value: self.settings.set("scan_hand_checks", value)
         )
+        self.high_performance_check = QCheckBox()
+        self.high_performance_check.toggled.connect(
+            lambda value: self.settings.set("high_performance_scan", value)
+        )
+        self.mediapipe_delegate_combo = QComboBox()
+        self.mediapipe_delegate_combo.addItem("CPU", "CPU")
+        self.mediapipe_delegate_combo.addItem("GPU", "GPU")
+        self.mediapipe_delegate_combo.currentIndexChanged.connect(
+            self._update_mediapipe_delegate
+        )
 
         self.target_width_spin = QSpinBox()
         self.target_width_spin.setRange(1, 50000)
@@ -295,8 +320,17 @@ class MainWindow(QMainWindow):
         self.max_hands_spin.valueChanged.connect(
             lambda value: self.settings.set("max_hands_to_detect", value)
         )
+        self.scan_worker_spin = QSpinBox()
+        self.scan_worker_spin.setRange(0, 128)
+        self.scan_worker_spin.setSpecialValueText("自動")
+        self.scan_worker_spin.valueChanged.connect(
+            lambda value: self.settings.set("scan_worker_count", value)
+        )
 
         settings_layout.addRow("Delete", self.delete_mode_combo)
+        settings_layout.addRow("高速スキャン", self.high_performance_check)
+        settings_layout.addRow("CPUワーカー数", self.scan_worker_spin)
+        settings_layout.addRow("MediaPipe", self.mediapipe_delegate_combo)
         settings_layout.addRow("自動送り", self.auto_advance_check)
         settings_layout.addRow("赤枠表示", self.overlay_check)
         settings_layout.addRow("基準幅", self.target_width_spin)
@@ -404,6 +438,8 @@ class MainWindow(QMainWindow):
             self.scan_pose_check,
             self.scan_missing_pose_check,
             self.scan_hand_check,
+            self.high_performance_check,
+            self.mediapipe_delegate_combo,
             self.target_width_spin,
             self.target_height_spin,
             self.aspect_tolerance_spin,
@@ -411,6 +447,7 @@ class MainWindow(QMainWindow):
             self.pose_max_spin,
             self.expected_hand_spin,
             self.max_hands_spin,
+            self.scan_worker_spin,
         ]
         for control in controls:
             control.blockSignals(True)
@@ -435,6 +472,13 @@ class MainWindow(QMainWindow):
                 bool(self.settings.get("scan_missing_pose", False))
             )
             self.scan_hand_check.setChecked(bool(self.settings.get("scan_hand_checks", False)))
+            self.high_performance_check.setChecked(
+                bool(self.settings.get("high_performance_scan", True))
+            )
+            delegate_index = self.mediapipe_delegate_combo.findData(
+                str(self.settings.get("mediapipe_delegate", "CPU")).upper()
+            )
+            self.mediapipe_delegate_combo.setCurrentIndex(max(0, delegate_index))
             self.target_width_spin.setValue(int(self.settings.get("target_width", 1024)))
             self.target_height_spin.setValue(int(self.settings.get("target_height", 1536)))
             self.aspect_tolerance_spin.setValue(
@@ -446,6 +490,7 @@ class MainWindow(QMainWindow):
             self.pose_max_spin.setValue(int(self.settings.get("pose_max_poses", 2)))
             self.expected_hand_spin.setValue(int(self.settings.get("expected_hand_count", 2)))
             self.max_hands_spin.setValue(int(self.settings.get("max_hands_to_detect", 4)))
+            self.scan_worker_spin.setValue(int(self.settings.get("scan_worker_count", 0)))
         finally:
             for control in controls:
                 control.blockSignals(False)
@@ -609,7 +654,12 @@ class MainWindow(QMainWindow):
         self.scan_progress.setRange(0, max(1, len(paths)))
         self.scan_progress.setValue(0)
         self.scan_button.setEnabled(False)
-        self.statusBar().showMessage("スキャン中...")
+        if bool(self.settings.get("high_performance_scan", True)):
+            workers = int(self.settings.get("scan_worker_count", 0))
+            worker_label = "自動" if workers <= 0 else str(workers)
+            self.statusBar().showMessage(f"高速スキャン中... ワーカー数: {worker_label}")
+        else:
+            self.statusBar().showMessage("スキャン中...")
 
         self._scan_thread = QThread(self)
         self._scan_worker = ScanWorker(paths, self.settings.data)
@@ -821,6 +871,11 @@ class MainWindow(QMainWindow):
     def _update_overlay(self, enabled: bool) -> None:
         self.settings.set("show_overlay", enabled)
         self.viewer.set_show_overlay(enabled)
+
+    def _update_mediapipe_delegate(self) -> None:
+        value = self.mediapipe_delegate_combo.currentData()
+        if value:
+            self.settings.set("mediapipe_delegate", value)
 
     @staticmethod
     def _status_from_scan_result(result: ScanResult | None) -> str:

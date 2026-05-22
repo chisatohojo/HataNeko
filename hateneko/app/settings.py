@@ -27,6 +27,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "scan_hand_checks": False,
     "expected_hand_count": 2,
     "max_hands_to_detect": 4,
+    "high_performance_scan": True,
+    "scan_worker_count": 0,
+    "mediapipe_delegate": "CPU",
 }
 
 

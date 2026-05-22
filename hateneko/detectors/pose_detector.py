@@ -113,7 +113,10 @@ class PoseDetector(BaseDetector):
             return self._landmarker
 
         model_path = ensure_model(POSE_LANDMARKER_LITE)
-        base_options = python.BaseOptions(model_asset_path=str(model_path))
+        base_options = python.BaseOptions(
+            model_asset_path=str(model_path),
+            delegate=_mediapipe_delegate(context),
+        )
         options = vision.PoseLandmarkerOptions(
             base_options=base_options,
             running_mode=vision.RunningMode.IMAGE,
@@ -202,6 +205,12 @@ def _visible(landmark, min_visibility: float) -> bool:
     if visibility is None:
         return True
     return visibility >= min_visibility
+
+
+def _mediapipe_delegate(context: dict[str, Any]):
+    if str(context.get("mediapipe_delegate", "CPU")).upper() == "GPU":
+        return python.BaseOptions.Delegate.GPU
+    return python.BaseOptions.Delegate.CPU
 
 
 def _distance(a, b) -> float:

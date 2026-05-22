@@ -80,6 +80,7 @@ def build_default_scanner(settings: dict[str, Any] | None = None) -> Scanner:
         "scan_hand_checks": bool(settings.get("scan_hand_checks", False)),
         "expected_hand_count": int(settings.get("expected_hand_count", 2)),
         "max_hands_to_detect": int(settings.get("max_hands_to_detect", 4)),
+        "mediapipe_delegate": str(settings.get("mediapipe_delegate", "CPU")),
     }
 
     detectors: list[BaseDetector] = [

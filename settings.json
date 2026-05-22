@@ -1,0 +1,13 @@
+{
+  "expected_person_count": 1,
+  "target_width": 1024,
+  "target_height": 1536,
+  "allow_aspect_ratio_tolerance": 0.05,
+  "delete_mode": "move_to_deleted_folder",
+  "thumbnail_size": 160,
+  "auto_advance_after_action": true,
+  "show_overlay": true,
+  "scan_face_count": false,
+  "scan_duplicate": true
+}
+

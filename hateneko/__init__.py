@@ -1,0 +1,2 @@
+"""Hataneko image inspection application."""
+

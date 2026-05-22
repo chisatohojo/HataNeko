@@ -7,6 +7,9 @@
   "thumbnail_size": 160,
   "auto_advance_after_action": true,
   "show_overlay": true,
-  "scan_face_count": false,
-  "scan_duplicate": true
+  "scan_face_count": true,
+  "scan_zero_faces": false,
+  "scan_duplicate": true,
+  "scan_near_duplicate": true,
+  "perceptual_hash_threshold": 6
 }

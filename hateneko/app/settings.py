@@ -14,8 +14,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "thumbnail_size": 160,
     "auto_advance_after_action": True,
     "show_overlay": True,
-    "scan_face_count": False,
+    "scan_face_count": True,
+    "scan_zero_faces": False,
     "scan_duplicate": True,
+    "scan_near_duplicate": True,
+    "perceptual_hash_threshold": 6,
 }
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import imagehash
 from PIL.Image import Image
 
 from hateneko.core.hash_checker import sha256_file
@@ -49,5 +50,37 @@ class DuplicateDetector(BaseDetector):
             ]
 
         seen_hashes[digest] = str(path)
-        return []
 
+        if image is None or not context.get("scan_near_duplicate", True):
+            return []
+
+        try:
+            perceptual_hash = imagehash.phash(image)
+        except Exception as exc:
+            return [
+                Issue(
+                    type="perceptual_hash_error",
+                    severity="warning",
+                    message=f"近似重複チェック用ハッシュを計算できません: {exc}",
+                )
+            ]
+
+        threshold = int(context.get("perceptual_hash_threshold", 6))
+        seen_phashes: list[tuple[str, Any]] = context.setdefault("seen_phashes", [])
+        for original_path, original_hash in seen_phashes:
+            distance = perceptual_hash - original_hash
+            if distance <= threshold:
+                return [
+                    Issue(
+                        type="duplicate_near",
+                        severity="warning",
+                        message=(
+                            "近似重複画像候補です: "
+                            f"{Path(original_path).name} / 距離 {distance}"
+                        ),
+                        score=float(distance),
+                    )
+                ]
+
+        seen_phashes.append((str(path), perceptual_hash))
+        return []

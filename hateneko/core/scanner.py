@@ -9,6 +9,7 @@ from hateneko.core.scan_result import Issue, ScanResult
 from hateneko.detectors.base import BaseDetector
 from hateneko.detectors.brightness_detector import BrightnessDetector
 from hateneko.detectors.duplicate_detector import DuplicateDetector
+from hateneko.detectors.face_detector import FaceDetector
 from hateneko.detectors.file_detector import FileDetector
 from hateneko.detectors.resolution_detector import ResolutionDetector
 
@@ -66,6 +67,11 @@ def build_default_scanner(settings: dict[str, Any] | None = None) -> Scanner:
             settings.get("allow_aspect_ratio_tolerance", 0.05)
         ),
         "scan_duplicate": bool(settings.get("scan_duplicate", True)),
+        "scan_near_duplicate": bool(settings.get("scan_near_duplicate", True)),
+        "perceptual_hash_threshold": int(settings.get("perceptual_hash_threshold", 6)),
+        "expected_person_count": int(settings.get("expected_person_count", 1)),
+        "scan_face_count": bool(settings.get("scan_face_count", True)),
+        "scan_zero_faces": bool(settings.get("scan_zero_faces", False)),
     }
 
     detectors: list[BaseDetector] = [
@@ -73,6 +79,7 @@ def build_default_scanner(settings: dict[str, Any] | None = None) -> Scanner:
         _ContextResolutionDetector(context_defaults),
         BrightnessDetector(),
         _ContextDuplicateDetector(context_defaults),
+        _ContextFaceDetector(context_defaults),
     ]
     return Scanner(detectors)
 
@@ -94,7 +101,20 @@ class _ContextDuplicateDetector(DuplicateDetector):
         merged = {**self.defaults, **context}
         if "seen_hashes" in context:
             merged["seen_hashes"] = context["seen_hashes"]
+        if "seen_phashes" in context:
+            merged["seen_phashes"] = context["seen_phashes"]
         issues = super().detect(image, file_path, merged)
         if "seen_hashes" in merged:
             context["seen_hashes"] = merged["seen_hashes"]
+        if "seen_phashes" in merged:
+            context["seen_phashes"] = merged["seen_phashes"]
         return issues
+
+
+class _ContextFaceDetector(FaceDetector):
+    def __init__(self, defaults: dict[str, Any]) -> None:
+        self.defaults = defaults
+
+    def detect(self, image, file_path, context):
+        merged = {**self.defaults, **context}
+        return super().detect(image, file_path, merged)

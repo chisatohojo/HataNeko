@@ -27,6 +27,17 @@ class Issue:
             data["bbox"] = list(self.bbox)
         return data
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Issue":
+        bbox = data.get("bbox")
+        return cls(
+            type=str(data.get("type", "unknown")),
+            severity=str(data.get("severity", "warning")),
+            message=str(data.get("message", "")),
+            bbox=tuple(bbox) if bbox is not None else None,
+            score=data.get("score"),
+        )
+
 
 @dataclass(slots=True)
 class ScanResult:
@@ -57,6 +68,20 @@ class ScanResult:
             "issues": [issue.to_dict() for issue in self.issues],
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ScanResult":
+        issues = [
+            Issue.from_dict(issue)
+            for issue in data.get("issues", [])
+            if isinstance(issue, dict)
+        ]
+        return cls(
+            file_path=str(data.get("file_path", "")),
+            status=str(data.get("status", STATUS_UNCONFIRMED)),
+            score=int(data.get("score", 100)),
+            issues=issues,
+        )
+
 
 def _severity_penalty(severity: str) -> int:
     if severity == "danger":
@@ -64,4 +89,3 @@ def _severity_penalty(severity: str) -> int:
     if severity == "warning":
         return 18
     return 8
-

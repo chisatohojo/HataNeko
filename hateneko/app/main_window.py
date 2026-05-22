@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
-from PySide6.QtGui import QAction, QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -46,6 +46,7 @@ from hateneko.core.scan_result import (
     ScanResult,
 )
 from hateneko.core.scanner import build_default_scanner
+from hateneko.core.scan_store import ScanResultStore
 
 
 MANUAL_STATUSES = {STATUS_OK, STATUS_FIX, STATUS_NG, STATUS_DELETED}
@@ -89,6 +90,7 @@ class MainWindow(QMainWindow):
         self.loader = ImageLoader()
         self.file_manager = FileManager()
         self.logger = ActionLogger()
+        self.scan_store = ScanResultStore()
 
         self.folder_path: Path | None = None
         self.image_paths: list[Path] = []
@@ -214,6 +216,22 @@ class MainWindow(QMainWindow):
         )
         self.overlay_check = QCheckBox()
         self.overlay_check.toggled.connect(self._update_overlay)
+        self.scan_duplicate_check = QCheckBox()
+        self.scan_duplicate_check.toggled.connect(
+            lambda value: self.settings.set("scan_duplicate", value)
+        )
+        self.scan_near_duplicate_check = QCheckBox()
+        self.scan_near_duplicate_check.toggled.connect(
+            lambda value: self.settings.set("scan_near_duplicate", value)
+        )
+        self.scan_face_check = QCheckBox()
+        self.scan_face_check.toggled.connect(
+            lambda value: self.settings.set("scan_face_count", value)
+        )
+        self.scan_zero_faces_check = QCheckBox()
+        self.scan_zero_faces_check.toggled.connect(
+            lambda value: self.settings.set("scan_zero_faces", value)
+        )
 
         self.target_width_spin = QSpinBox()
         self.target_width_spin.setRange(1, 50000)
@@ -232,6 +250,11 @@ class MainWindow(QMainWindow):
         self.aspect_tolerance_spin.valueChanged.connect(
             lambda value: self.settings.set("allow_aspect_ratio_tolerance", value)
         )
+        self.phash_threshold_spin = QSpinBox()
+        self.phash_threshold_spin.setRange(0, 64)
+        self.phash_threshold_spin.valueChanged.connect(
+            lambda value: self.settings.set("perceptual_hash_threshold", value)
+        )
 
         settings_layout.addRow("Delete", self.delete_mode_combo)
         settings_layout.addRow("自動送り", self.auto_advance_check)
@@ -239,6 +262,11 @@ class MainWindow(QMainWindow):
         settings_layout.addRow("基準幅", self.target_width_spin)
         settings_layout.addRow("基準高", self.target_height_spin)
         settings_layout.addRow("比率誤差", self.aspect_tolerance_spin)
+        settings_layout.addRow("重複チェック", self.scan_duplicate_check)
+        settings_layout.addRow("近似重複", self.scan_near_duplicate_check)
+        settings_layout.addRow("近似しきい値", self.phash_threshold_spin)
+        settings_layout.addRow("顔数チェック", self.scan_face_check)
+        settings_layout.addRow("顔0件も警告", self.scan_zero_faces_check)
         layout.addWidget(settings_group)
 
         return panel
@@ -306,16 +334,48 @@ class MainWindow(QMainWindow):
             QShortcut(QKeySequence(sequence), self, activated=callback)
 
     def _sync_settings_controls(self) -> None:
-        delete_mode = self.settings.get("delete_mode", "move_to_deleted_folder")
-        index = self.delete_mode_combo.findData(delete_mode)
-        self.delete_mode_combo.setCurrentIndex(max(0, index))
-        self.auto_advance_check.setChecked(bool(self.settings.get("auto_advance_after_action", True)))
-        self.overlay_check.setChecked(bool(self.settings.get("show_overlay", True)))
-        self.target_width_spin.setValue(int(self.settings.get("target_width", 1024)))
-        self.target_height_spin.setValue(int(self.settings.get("target_height", 1536)))
-        self.aspect_tolerance_spin.setValue(
-            float(self.settings.get("allow_aspect_ratio_tolerance", 0.05))
-        )
+        controls = [
+            self.delete_mode_combo,
+            self.auto_advance_check,
+            self.overlay_check,
+            self.scan_duplicate_check,
+            self.scan_near_duplicate_check,
+            self.scan_face_check,
+            self.scan_zero_faces_check,
+            self.target_width_spin,
+            self.target_height_spin,
+            self.aspect_tolerance_spin,
+            self.phash_threshold_spin,
+        ]
+        for control in controls:
+            control.blockSignals(True)
+        try:
+            delete_mode = self.settings.get("delete_mode", "move_to_deleted_folder")
+            index = self.delete_mode_combo.findData(delete_mode)
+            self.delete_mode_combo.setCurrentIndex(max(0, index))
+            self.auto_advance_check.setChecked(
+                bool(self.settings.get("auto_advance_after_action", True))
+            )
+            self.overlay_check.setChecked(bool(self.settings.get("show_overlay", True)))
+            self.scan_duplicate_check.setChecked(bool(self.settings.get("scan_duplicate", True)))
+            self.scan_near_duplicate_check.setChecked(
+                bool(self.settings.get("scan_near_duplicate", True))
+            )
+            self.scan_face_check.setChecked(bool(self.settings.get("scan_face_count", True)))
+            self.scan_zero_faces_check.setChecked(
+                bool(self.settings.get("scan_zero_faces", False))
+            )
+            self.target_width_spin.setValue(int(self.settings.get("target_width", 1024)))
+            self.target_height_spin.setValue(int(self.settings.get("target_height", 1536)))
+            self.aspect_tolerance_spin.setValue(
+                float(self.settings.get("allow_aspect_ratio_tolerance", 0.05))
+            )
+            self.phash_threshold_spin.setValue(
+                int(self.settings.get("perceptual_hash_threshold", 6))
+            )
+        finally:
+            for control in controls:
+                control.blockSignals(False)
 
     def select_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "画像フォルダを選択")
@@ -327,14 +387,20 @@ class MainWindow(QMainWindow):
         self.file_manager.ensure_output_dirs(folder)
         self.logger.set_base_folder(folder)
         self.image_paths = self.loader.list_images(folder)
-        self.statuses = {str(path): STATUS_UNCONFIRMED for path in self.image_paths}
-        self.scan_results.clear()
+        self.scan_results = self.scan_store.load(folder, self.image_paths)
+        self.statuses = {
+            str(path): self._status_from_scan_result(self.scan_results.get(str(path)))
+            for path in self.image_paths
+        }
         self.undo_stack.clear()
         self.current_index = 0 if self.image_paths else -1
         self.scan_progress.setValue(0)
         self._populate_thumbnails()
         self._show_current()
-        self.statusBar().showMessage(f"{len(self.image_paths)} 件の画像を読み込みました。")
+        loaded = len(self.scan_results)
+        self.statusBar().showMessage(
+            f"{len(self.image_paths)} 件の画像を読み込みました。保存済み結果 {loaded} 件。"
+        )
 
     def reload_folder(self) -> None:
         if self.folder_path is None:
@@ -343,14 +409,22 @@ class MainWindow(QMainWindow):
         old_statuses = dict(self.statuses)
         old_results = dict(self.scan_results)
         self.image_paths = self.loader.list_images(self.folder_path)
-        self.statuses = {
-            str(path): old_statuses.get(str(path), STATUS_UNCONFIRMED)
+        stored_results = self.scan_store.load(self.folder_path, self.image_paths)
+        merged_results = {
+            str(path): old_results.get(str(path), stored_results.get(str(path)))
             for path in self.image_paths
         }
         self.scan_results = {
-            str(path): old_results[str(path)]
+            path: result
+            for path, result in merged_results.items()
+            if result is not None
+        }
+        self.statuses = {
+            str(path): old_statuses.get(
+                str(path),
+                self._status_from_scan_result(self.scan_results.get(str(path))),
+            )
             for path in self.image_paths
-            if str(path) in old_results
         }
         if previous_path in self.image_paths:
             self.current_index = self.image_paths.index(previous_path)
@@ -503,7 +577,11 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_scan_finished(self) -> None:
         self.scan_button.setEnabled(True)
-        self.statusBar().showMessage("スキャンが完了しました。")
+        if self.folder_path is not None:
+            store_path = self.scan_store.save(self.folder_path, self.scan_results)
+            self.statusBar().showMessage(f"スキャンが完了しました。結果を保存: {store_path.name}")
+        else:
+            self.statusBar().showMessage("スキャンが完了しました。")
         self._scan_thread = None
         self._scan_worker = None
         self._populate_thumbnails(keep_selection=True)
@@ -573,7 +651,8 @@ class MainWindow(QMainWindow):
 
         self.scan_status_label.setText(STATUS_LABELS.get(result.status, result.status))
         for issue in result.issues:
-            self.issue_list.addItem(f"[{issue.severity}] {issue.message}")
+            bbox = f" bbox={issue.bbox}" if issue.bbox else ""
+            self.issue_list.addItem(f"[{issue.severity}] {issue.message}{bbox}")
 
     def _set_empty_info(self) -> None:
         for label in [
@@ -623,6 +702,12 @@ class MainWindow(QMainWindow):
         self.viewer.set_show_overlay(enabled)
 
     @staticmethod
+    def _status_from_scan_result(result: ScanResult | None) -> str:
+        if result is not None and result.issues:
+            return STATUS_SUSPICIOUS
+        return STATUS_UNCONFIRMED
+
+    @staticmethod
     def _format_size(size_bytes: int) -> str:
         value = float(size_bytes)
         for unit in ["B", "KB", "MB", "GB"]:
@@ -638,4 +723,3 @@ def run_app() -> int:
     window = MainWindow()
     window.show()
     return app.exec()
-

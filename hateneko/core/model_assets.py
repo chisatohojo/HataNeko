@@ -5,8 +5,7 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlretrieve
 
-
-MODEL_DIR = Path(__file__).resolve().parents[1] / "assets" / "models"
+from hateneko.core.paths import model_dir
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,7 +15,7 @@ class ModelAsset:
 
     @property
     def path(self) -> Path:
-        return MODEL_DIR / self.filename
+        return model_dir() / self.filename
 
 
 HAND_LANDMARKER = ModelAsset(

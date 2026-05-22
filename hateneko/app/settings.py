@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from hateneko.core.paths import settings_path
+
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "expected_person_count": 1,
@@ -36,7 +38,7 @@ class SettingsManager:
 
     @staticmethod
     def default_path() -> Path:
-        return Path(__file__).resolve().parents[2] / "settings.json"
+        return settings_path()
 
     def load(self) -> dict[str, Any]:
         should_save = not self.path.exists()

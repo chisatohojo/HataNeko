@@ -11,6 +11,16 @@ python -m pip install -r requirements.txt
 python -m hateneko.main
 ```
 
+## exeビルド
+
+```powershell
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-build.txt
+.\build_exe.ps1
+```
+
+ビルド後の実行ファイルは `dist\HataNeko\HataNeko.exe` です。配布用には `dist\HataNeko-windows.zip` を使えます。exe実行時の設定とMediaPipeモデルは、exe横の `HataNekoData` に保存されます。
+
 ## 主な操作
 
 - フォルダ選択: 画像フォルダを読み込みます。
